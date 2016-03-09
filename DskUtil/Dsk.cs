@@ -16,7 +16,7 @@ namespace DskUtil
 	/// <summary>
 	/// A representation of a .dsk floppy image with DECB file system.
 	/// </summary>
-	public class Dsk
+	public class Dsk:IDisposable
 	{
 		string FileName;
 		byte[] Fat=new byte[68];
@@ -25,28 +25,30 @@ namespace DskUtil
 		int FreeSpace=0;
 		long DskFileSize=0;
 		int DirectoryLength=0;
+		FileStream image=null;
+		
 		public List<FileEntry> Files=new List<FileEntry>();
 		
 		public Dsk(string filename)
 		{
 			FileName=filename;
 			IOException e=null;
-			FileStream image=null;
 			try{
 				image=new FileStream(FileName,FileMode.Open);
-				UpdateFatData(image);
-			}catch(IOException ex){e=ex;}
-			finally{
+				UpdateFatData();
+			}catch(IOException ex){
+				e=ex;
 				if(image!=null){
 					image.Close();
 					image.Dispose();
 				}
+				throw e;
 			}
-			if(e!=null){throw e;}		
 		}
 		
-		void UpdateFatData(FileStream image)
+		void UpdateFatData()
 		{
+			Files.Clear();
 			FileInfo f=new FileInfo(FileName);
 			DskFileSize=f.Length;
 			image.Seek(DskFileOffset(17,2),SeekOrigin.Begin);
@@ -70,7 +72,8 @@ namespace DskUtil
 				int granCount=0;
 				int size=0;
 				int bytes;
-				if(nextGran==255)continue;
+				if(Directory[x]==255)break;
+				if(Directory[x]==0)continue;
 				while(nextGran<192){
 					nextGran=Fat[nextGran];
 					granCount++;
@@ -79,8 +82,8 @@ namespace DskUtil
 				size=(granCount-1)*9;
 				size+=((nextGran&0xF)-1);
 				size*=256;
-				//bytes=Directory[x+14];
-				//bytes=bytes<<8;
+				bytes=Directory[x+14];
+				bytes=bytes<<8;
 				bytes=Directory[x+15];
 				size+=bytes;
 				Files.Add(new FileEntry(name.Trim()+"."+ext.Trim(),0,false,size,firstGran,bytes));
@@ -91,7 +94,6 @@ namespace DskUtil
 		{
 			string outpath=path+Path.DirectorySeparatorChar+file;
 			FileStream output=null;
-			FileStream image=null;
 			IOException e=null;
 			byte[] buffer=new byte[256*9];//a granule size 256 bytes per sector *9 sectors
 			int x=2;
@@ -109,8 +111,7 @@ namespace DskUtil
 			}
 			try{
 				output =new FileStream(outpath,FileMode.CreateNew);
-				image=new FileStream(FileName,FileMode.Open);
-				UpdateFatData(image);
+				UpdateFatData();
 				FileEntry entry=null;
 				foreach(FileEntry ent in Files){
 					if(ent.Name==file){
@@ -146,13 +147,9 @@ namespace DskUtil
 					output.Close();
 					output.Dispose();
 				}
-				if(image!=null){
-					image.Close();
-					image.Dispose();
-				}
 			}
 			if(e!=null)throw e;
-		
+			UpdateFatData();
 		}
 		
 		public void CopyToDsk(FileToCopy file,bool overwrite)
@@ -161,10 +158,9 @@ namespace DskUtil
 			int result;
 			byte[] buffer=new byte[2304];
 			FileInfo fileLength=new FileInfo(file.Path);
-			FileStream image=new FileStream(FileName,FileMode.Open);
 			FileStream input;
 			granulesToUse=new int[((new FileInfo(file.Path).Length)/2304)+1];
-			UpdateFatData(image);
+			UpdateFatData();
 			
 			if(fileLength.Length>FreeSpace)
 			{
@@ -232,9 +228,7 @@ namespace DskUtil
 			image.Write(Fat,0,Fat.Length);
 			image.Seek(DskFileOffset(17,3),SeekOrigin.Begin);
 			image.Write(Directory,0,Directory.Length);
-			image.Close();
-			image.Dispose();
-			
+			UpdateFatData();
 		}
 		
 		int GetNearestFreeGranule(int start){
@@ -328,6 +322,13 @@ namespace DskUtil
 			ext=ext.ToUpper();
 			return name+"."+ext;
 		}
-		
+		public void Close()
+		{
+			image.Close();
+		}
+		public void Dispose()
+		{
+			image.Dispose();
+		}
 	}
 }

@@ -53,10 +53,11 @@ namespace DskUtil
 			if(!OfDialog.CheckFileExists)return;
 			textBox1.Text=OfDialog.FileName;
 			ImagePath=OfDialog.FileName;
+			if(disk!=null){disk.Close();disk.Dispose();}
+			disk=new Dsk(ImagePath);
 			PopulateList();
 		}
 		void PopulateList(){
-			disk=new Dsk(ImagePath);
 			listBox1.Items.Clear();
 			foreach(FileEntry f in disk.Files)listBox1.Items.Add(f.ToString());
 			listBox1.Update();
