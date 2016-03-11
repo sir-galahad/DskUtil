@@ -18,13 +18,38 @@ namespace DskUtil
 	/// </summary>
 	public class Dsk:IDisposable
 	{
-		string FileName;
+		public static void CreateNewImage(string fileName){
+			byte[] buffer=new byte[256];
+			
+			for(int x=0;x<buffer.Length;x++)buffer[x]=0xff;
+			
+			FileStream newImage=new FileStream(fileName,FileMode.CreateNew);
+			newImage.Seek(DskFileOffset(17,2),SeekOrigin.Begin);
+			newImage.Write(buffer,0,buffer.Length);
+			
+			//create a blank Directory there may be a better way to do this
+			//but i'm going to have each entry be sixteen 0xFF values followed by sixteen 0x0 values
+			//the 0x0 aren't used by DECB but were "reserved for future use" so it may be checking that these values are unused
+			for(int x=16;x<256;x+=32)
+			{
+				for(int y=0;y<16;y++){
+					buffer[x+y]=0;
+				}
+			}
+			
+			for(int x=0;x<9;x++)
+			{
+				newImage.Write(buffer,0,buffer.Length);
+			}
+			newImage.Close();
+			newImage.Dispose();
+		}
+		public string FileName{get;private set;}
 		byte[] Fat=new byte[68];
 		byte[] Directory=new byte[32*72];
-		int FreeGranules;
+		public int FreeGranules{get;private set;}
 		int FreeSpace=0;
 		long DskFileSize=0;
-		int DirectoryLength=0;
 		FileStream image=null;
 		
 		public List<FileEntry> Files=new List<FileEntry>();
@@ -52,9 +77,9 @@ namespace DskUtil
 			FileInfo f=new FileInfo(FileName);
 			DskFileSize=f.Length;
 			image.Seek(DskFileOffset(17,2),SeekOrigin.Begin);
-			image.Read(Fat,0,68);
+			if(image.Read(Fat,0,68)<68) throw new IOException("malformed .dsk image");
 			image.Seek(DskFileOffset(17,3),SeekOrigin.Begin);
-			DirectoryLength=image.Read(Directory,0,32*72);
+			if(image.Read(Directory,0,32*72)<256)throw new IOException("malformed dsk image");
 			
 			foreach(byte b in Fat)
 			{
@@ -84,7 +109,7 @@ namespace DskUtil
 				size*=256;
 				bytes=Directory[x+14];
 				bytes=bytes<<8;
-				bytes=Directory[x+15];
+				bytes|=Directory[x+15];
 				size+=bytes;
 				Files.Add(new FileEntry(name.Trim()+"."+ext.Trim(),0,false,size,firstGran,bytes));
 			}
@@ -192,7 +217,7 @@ namespace DskUtil
 			input=new FileStream(file.Path,FileMode.Open);
 			for(int index=0;index<granulesToUse.Length;index++){
 				input.Read(buffer,0,2304);
-				WriteGranule(image,buffer,granulesToUse[index]);
+				WriteGranule(buffer,granulesToUse[index]);
 			}
 			input.Close();
 			input.Dispose();
@@ -202,7 +227,7 @@ namespace DskUtil
 			
 			int sectors=(int)(fileLength.Length%2304);
 			sectors/=256;
-			sectors+=1;
+			if(fileLength.Length%256!=0)sectors+=1;
 			Fat[granulesToUse[granulesToUse.Length-1]]=(byte)(192+sectors);
 			string[] fNameParts=file.Filename.Split('.');
 			Encoding.ASCII.GetBytes("           ").CopyTo(buffer,0);
@@ -211,23 +236,56 @@ namespace DskUtil
 			else buffer[12]=0;
 			buffer[13]=(byte)granulesToUse[0];
 			buffer[15]=(byte)(fileLength.Length%256);
+			if(fileLength.Length%256==0&&fileLength.Length>0)buffer[14]=1;
+			else buffer[14]=0;
 			Encoding.ASCII.GetBytes(fNameParts[0]).CopyTo(buffer,0);
 			Encoding.ASCII.GetBytes(fNameParts[1]).CopyTo(buffer,8);
-			buffer[14]=0;
+		
 			for(int index=16;index<=31;index++){
 				buffer[index]=0;
 			}
 			buffer[32]=0xff;
+			int tocopy=33;
 			for(x=0;x<68;x++){
 				if(Directory[x*32]==0xff){break;}
+				if(Directory[x*32]==0)
+				{
+					tocopy=32; 
+					break;
+				}
 			}
-			for(int index=0;index<33;index++){
+			for(int index=0;index<tocopy;index++){
 				Directory[x*32+index]=buffer[index];
 			}
-			image.Seek(DskFileOffset(17,2),SeekOrigin.Begin);
-			image.Write(Fat,0,Fat.Length);
-			image.Seek(DskFileOffset(17,3),SeekOrigin.Begin);
-			image.Write(Directory,0,Directory.Length);
+			
+			WriteSector(Fat,DskFileOffset(17,2));
+			WriteDirectory();
+			UpdateFatData();
+		}
+		
+		public void DeleteFile(string filename)
+		{
+			int FileEntryStart=-1;
+			for(int x=0;x<72;x++){
+				string name=Encoding.ASCII.GetString(Directory,x*32,8).Trim();
+				string ext=Encoding.ASCII.GetString(Directory,x*32+8,3).Trim();
+				if(filename==name+"."+ext){
+					FileEntryStart=x*32;
+					break;
+				}
+			}
+			if(FileEntryStart==-1)return;
+			int nextGranule=Directory[FileEntryStart+13];
+			int currentGranule;
+			while(nextGranule<68){
+				currentGranule=nextGranule;
+				nextGranule=Fat[nextGranule];
+				Fat[currentGranule]=0xFF;
+			}
+			Directory[FileEntryStart]=0;
+			
+			WriteSector(Fat,DskFileOffset(17,2));
+			WriteDirectory();
 			UpdateFatData();
 		}
 		
@@ -249,7 +307,54 @@ namespace DskUtil
 			return 0xff;
 		}
 		
-		void WriteGranule(FileStream image,byte[] buffer,int granule)
+		public void Rename(string oldName, string newName)
+		{
+			int index=-1;
+			string[] oldNameAndExt=oldName.Split('.');
+			for(int x=0;x<32*72;x+=32)
+			{
+				if(Directory[x]==0xff)return;
+				string tmpName=Encoding.ASCII.GetString(Directory,x,8).Trim();
+				string tmpExt=Encoding.ASCII.GetString(Directory,x+8,3).Trim();
+				if(oldNameAndExt[0]==tmpName && oldNameAndExt[1]==tmpExt)
+				{
+					index=x;
+					break;
+				}
+				
+			}
+			if(index==-1)return;
+			newName=newName.Replace('/','.');
+			string[] newNameAndExt=newName.Split('.');
+			for(int x=0;x<11;x++)
+			{
+				Directory[index+x]=0x20;//ASCII space
+			}
+			for(int x=0;x<newNameAndExt[0].Length;x++){
+				Directory[index+x]=Encoding.ASCII.GetBytes(newNameAndExt[0])[x];
+			}
+			for(int x=0;x<newNameAndExt[1].Length;x++){
+				Directory[index+8+x]=Encoding.ASCII.GetBytes(newNameAndExt[1])[x];
+			}
+			WriteDirectory();
+			UpdateFatData();
+		}
+		
+		void WriteDirectory()
+		{
+			byte[] buffer=new byte[256];
+			for(int x=0;x<Directory.Length;x+=256)
+			{
+				for(int y=0;y<256;y++)buffer[y]=0xFF;
+				for(int y=0;y<256&&(y+x)<Directory.Length;y++)
+				{
+					buffer[y]=Directory[x+y];	
+				}
+				WriteSector(buffer,DskFileOffset(17,3)+x);
+			}
+		}
+		
+		void WriteGranule(byte[] buffer,int granule)
 		{	int offset=GranuleOffset(granule);
 			byte[] sector=new byte[256];
 			for(int x=0;x<9;x++)
@@ -257,11 +362,11 @@ namespace DskUtil
 				for(int index=0;index<256;index++){
 					sector[index]=buffer[x*256+index];
 				}
-				WriteSector(image,sector,offset+(256*x));
+				WriteSector(sector,offset+(256*x));
 			}
 		}
 		
-		void WriteSector(FileStream image,byte[] buffer,int offset)
+		void WriteSector(byte[] buffer,int offset)
 		{
 			byte[] output=new byte[256];
 			//ugh Array.CopyTo() should have a count argument
@@ -281,7 +386,7 @@ namespace DskUtil
 			bool match=false;
 			for(index=0;index<=Directory.Length;index+=32)
 			{
-				if(Directory[index]==0){
+				if(Directory[index]==0xff){
 					break;
 				}
 				dirFile=Encoding.ASCII.GetString(Directory,index,8);
@@ -296,12 +401,12 @@ namespace DskUtil
 			}
 			return match;
 		}
-		int DskFileOffset(int track, int sector)
+		static int DskFileOffset(int track, int sector)
 		{
 			return track*18*256+(sector-1)*256;
 		}
 		
-		int GranuleOffset(int Gran)
+		static int GranuleOffset(int Gran)
 		{
 			int track=Gran/2;
 			if(track>=17)track++;

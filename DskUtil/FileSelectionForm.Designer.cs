@@ -75,7 +75,6 @@ namespace DskUtil
 			this.label1.Size = new System.Drawing.Size(243, 23);
 			this.label1.TabIndex = 0;
 			this.label1.Text = "Select File to Copy";
-			this.label1.Click += new System.EventHandler(this.Label1Click);
 			// 
 			// FileSelectButton
 			// 
@@ -160,7 +159,6 @@ namespace DskUtil
 			this.groupBox2.TabIndex = 8;
 			this.groupBox2.TabStop = false;
 			this.groupBox2.Text = "File Type";
-			this.groupBox2.Enter += new System.EventHandler(this.GroupBox2Enter);
 			// 
 			// typeAscii
 			// 

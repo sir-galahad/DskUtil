@@ -19,10 +19,10 @@ namespace DskUtil
 	public partial class FileSelectionForm : Form
 	{
 		FileDialog FdDialog;
-		string invalid="0/.:";
 		RadioButton[] FormatButtons;
 		FileToCopy copy=null;
 		public event Action<FileToCopy> FileConfirmed;
+	
 		public FileSelectionForm()
 		{
 			//
@@ -40,21 +40,13 @@ namespace DskUtil
 			// TODO: Add constructor code after the InitializeComponent() call.
 			//
 		}
-		void Label1Click(object sender, EventArgs e)
-		{
-	
-		}
-		void GroupBox2Enter(object sender, EventArgs e)
-		{
-	
-		}
+
 		
 		void FileSelectButtonClick(object sender, EventArgs e)
 		{
 			DialogResult result=FdDialog.ShowDialog();
 			if(result!=DialogResult.OK)return;
 			string file=FdDialog.FileName;
-			string name,ext,directory;
 			string dskFilename=Dsk.MakeValidFilename(Path.GetFileName(file));
 			label1.Text=file;
 			label2.Text=dskFilename;
@@ -69,10 +61,12 @@ namespace DskUtil
 			typeAscii.Checked=false;
 			copy=null;
 		}
+		
 		void CancelButtonClick(object sender, EventArgs e)
 		{
 			this.Hide();
 		}
+		
 		void CopyButtonClick(object sender, EventArgs e)
 		{
 			string sourceFile=label1.Text;
