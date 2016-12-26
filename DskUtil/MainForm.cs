@@ -137,7 +137,8 @@ namespace DskUtil
 			PopulateList();
 		}
 		void CloseDskButtonClick(object sender, EventArgs e)
-		{
+		{   
+			if(disk==null)return;
 			disk.Close();
 			disk.Dispose();
 			textBox1.Text="";
