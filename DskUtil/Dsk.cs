@@ -51,7 +51,7 @@ namespace DskUtil
 		int FreeSpace=0;
 		long DskFileSize=0;
 		FileStream image=null;
-		
+		public bool IsOpen{get;private set;}
 		public List<FileEntry> Files=new List<FileEntry>();
 		
 		public Dsk(string filename)
@@ -61,6 +61,7 @@ namespace DskUtil
 			try{
 				image=new FileStream(FileName,FileMode.Open);
 				UpdateFatData();
+				IsOpen=true;
 			}catch(IOException ex){
 				e=ex;
 				if(image!=null){
@@ -430,6 +431,7 @@ namespace DskUtil
 		public void Close()
 		{
 			image.Close();
+			IsOpen=false;
 		}
 		public void Dispose()
 		{

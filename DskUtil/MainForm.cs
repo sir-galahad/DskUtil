@@ -67,6 +67,7 @@ namespace DskUtil
 		void PopulateList()
 		{
 			listBox1.Items.Clear();
+			if(!disk.IsOpen){return;}
 			foreach(FileEntry f in disk.Files)listBox1.Items.Add(f.ToString());
 			listBox1.Update();
 		}
@@ -134,6 +135,14 @@ namespace DskUtil
 			disk=new Dsk(SfDialog.FileName);
 			textBox1.Text=SfDialog.FileName;
 			PopulateList();
+		}
+		void CloseDskButtonClick(object sender, EventArgs e)
+		{
+			disk.Close();
+			disk.Dispose();
+			textBox1.Text="";
+			PopulateList();
+			
 		}
 		
 	}

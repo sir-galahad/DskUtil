@@ -22,6 +22,7 @@ namespace DskUtil
 		private System.Windows.Forms.Button DeleteButton;
 		private System.Windows.Forms.Button RenameButton;
 		private System.Windows.Forms.Button NewDskButton;
+		private System.Windows.Forms.Button closeDskButton;
 		
 		/// <summary>
 		/// Disposes resources used by the form.
@@ -52,6 +53,7 @@ namespace DskUtil
 			this.DeleteButton = new System.Windows.Forms.Button();
 			this.RenameButton = new System.Windows.Forms.Button();
 			this.NewDskButton = new System.Windows.Forms.Button();
+			this.closeDskButton = new System.Windows.Forms.Button();
 			this.SuspendLayout();
 			// 
 			// textBox1
@@ -133,11 +135,22 @@ namespace DskUtil
 			this.NewDskButton.UseVisualStyleBackColor = true;
 			this.NewDskButton.Click += new System.EventHandler(this.NewDskButtonClick);
 			// 
+			// closeDskButton
+			// 
+			this.closeDskButton.Location = new System.Drawing.Point(235, 158);
+			this.closeDskButton.Name = "closeDskButton";
+			this.closeDskButton.Size = new System.Drawing.Size(118, 23);
+			this.closeDskButton.TabIndex = 9;
+			this.closeDskButton.Text = "Close DSK";
+			this.closeDskButton.UseVisualStyleBackColor = true;
+			this.closeDskButton.Click += new System.EventHandler(this.CloseDskButtonClick);
+			// 
 			// MainForm
 			// 
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
 			this.ClientSize = new System.Drawing.Size(409, 434);
+			this.Controls.Add(this.closeDskButton);
 			this.Controls.Add(this.NewDskButton);
 			this.Controls.Add(this.RenameButton);
 			this.Controls.Add(this.DeleteButton);
