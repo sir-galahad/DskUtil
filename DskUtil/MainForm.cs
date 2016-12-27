@@ -75,6 +75,10 @@ namespace DskUtil
 		void CopyFromDskButtonClick(object sender, EventArgs e)
 		{
 			if(disk==null)return;
+			if(listBox1.SelectedIndex==-1){
+				MessageBox.Show("A file must be selected before you can copy it off of the .dsk","Select a file");
+				return;
+			}
 			DialogResult result=FbDialog.ShowDialog();
 			if(result!=DialogResult.OK)return;
 			string file=disk.Files[listBox1.SelectedIndex].Name;
